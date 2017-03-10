@@ -1,0 +1,10 @@
+site_name: pytest-skipper
+site_description: A plugin that executes only the tests with changes in execution path
+site_author: Pekka Pöyry
+
+theme: readthedocs
+
+repo_url: https://github.com/quantus/pytest-skipper
+
+pages:
+- Home: index.md
