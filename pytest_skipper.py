@@ -36,8 +36,6 @@ def pytest_runtest_call(item):
     current_fixture = None
     current_cov.start()
 
-    # print 'Begin test capture', item
-
 
 def pytest_runtest_teardown(item, nextitem):
     global current_cov, current_fixture, fixture_scopes, tracing
@@ -57,8 +55,6 @@ def pytest_runtest_teardown(item, nextitem):
 
     save_scopes_to_db(current_git_head_sha, item.nodeid, scopes)
 
-    # print '\nEnd   test capture', item
-
 
 def pytest_fixture_setup(fixturedef, request):
     global current_cov, current_fixture, fixture_scopes, tracing
@@ -69,10 +65,8 @@ def pytest_fixture_setup(fixturedef, request):
         current_cov = create_coverage()
     elif current_fixture:
         stop_fixture_capture(current_fixture)
-        # print 'End   fixture capture', current_fixture, scopes
 
     current_fixture = fixturedef.argname
-    # print 'Begin fixture capture', fixturedef.argname
     current_cov.start()
 
 
@@ -192,8 +186,6 @@ def pytest_collection_modifyitems(session, config, items):
             config.hook.pytest_deselected(items=tests)
             return
 
-        # Debugging
-        # tests_to_run, tests_to_skip = tests_to_skip, tests_to_run
         if (
             config.getvalue('tracing') and
             tests_to_skip and
@@ -310,9 +302,6 @@ def get_changed_scopes_in_source(commit_sha):
         changes = list(
             difflib.unified_diff(a_content_lines, b_content_lines, n=0)
         )
-        # print a_content_lines
-        # print b_content_lines
-        # print changes
         lines = []
         for line in [l for l in changes if l.startswith('@')]:
             lines.append(re.match(
@@ -321,7 +310,6 @@ def get_changed_scopes_in_source(commit_sha):
             ).groups())
         a_lines = []
         b_lines = []
-        # print lines
         for line in lines:
             a_lines.append(int(line[0]))
             if line[1]:
@@ -341,8 +329,6 @@ def get_changed_scopes_in_source(commit_sha):
         for b in b_lines:
             if b != 0:
                 scopes.add(b_file_scopes[b-1])
-        # print (d.a_path or d.b_path), a_lines, b_lines
-    # print sorted(list(scopes))
     return scopes, dirty_test_files
 
 
