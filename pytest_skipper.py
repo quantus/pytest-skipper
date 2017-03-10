@@ -46,14 +46,21 @@ def pytest_runtest_teardown(item, nextitem):
     scopes = extract_scopes_from_coverage(current_cov)
     current_cov.erase()
 
+    failed = False
+
     for fixture_name in item.fixturenames:
         if fixture_name != 'request':  # pytest internal fixture
-            scopes.extend(fixture_scopes[fixture_name])
+            if fixture_name in fixture_scopes:
+                scopes.extend(fixture_scopes[fixture_name])
+            else:
+                print('Fixture execution trace missing, tracing ignored')
+                failed = True
 
     # Remove duplicates
     scopes = list(set(scopes))
 
-    save_scopes_to_db(current_git_head_sha, item.nodeid, scopes)
+    if not failed:
+        save_scopes_to_db(current_git_head_sha, item.nodeid, scopes)
 
 
 def pytest_fixture_setup(fixturedef, request):
