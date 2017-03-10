@@ -104,7 +104,7 @@ def pytest_report_header(config):
 def pytest_collection_modifyitems(session, config, items):
     if config.getvalue("skipper") or config.getvalue("dry-run-skipper"):
         import sqlite3
-        conn = sqlite3.connect('example.db')
+        conn = sqlite3.connect('skipper.db')
         c = conn.cursor()
         commit_shas = [
             row for row,
@@ -360,7 +360,7 @@ def extract_scopes_from_coverage(cov):
 
 def save_scopes_to_db(git_sha, test_id, scopes):
     import sqlite3
-    conn = sqlite3.connect('example.db')
+    conn = sqlite3.connect('skipper.db')
     c = conn.cursor()
     try:
         c.execute('CREATE TABLE scopes(git_sha text, scope text, test text)')
