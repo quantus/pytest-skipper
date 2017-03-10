@@ -39,7 +39,40 @@ You can install "pytest-skipper" via `pip`_ from `PyPI`_::
 Usage
 -----
 
-* TODO
+Capture execution trace
+-----------------------
+
+    $ py.test --trace
+
+This will run the full test suite and record coverage scopes (= name of executed functions)
+for each test. The scopes are stored in sqlite database ``skipper.db``. The git repo may not
+have any uncommitted changes when execution trace is recorded.
+
+Execute only tests with changes in execution path
+-------------------------------------------------
+
+    $ py.test --skipper
+
+This command compares your projects git repo state against traces in scope database and selects
+the execution trace with least code changes. After this the program calculates all scopes with
+changes and uses those to select only the tests that have changes in their execution path.
+
+Update execution trace while running few tests
+----------------------------------------------
+
+    $ py.test --skipper --trace
+
+You can use ``--trace`` and ``--skipper`` arguments at the same time to update the previous
+execution trace to the latest version without re-running all the tests. Execution traces are
+stored after each test case, so it is possible to terminate this command and continue it later.
+
+List tests with changes
+-----------------------
+
+    $ py.test --dry-run-skipper
+
+Same as ``--skipper``, but instead of running the tests, only outputs them. Useful to see what
+tests need to be updated after code change.
 
 Contributing
 ------------
