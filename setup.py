@@ -16,8 +16,6 @@ setup(
     version='0.1.0',
     author='Pekka Pöyry',
     author_email='pekka.poyry@gmail.com',
-    maintainer='Pekka Pöyry',
-    maintainer_email='pekka.poyry@gmail.com',
     license='MIT',
     url='https://github.com/quantus/pytest-skipper',
     description=(
@@ -49,7 +47,7 @@ setup(
     ],
     entry_points={
         'pytest11': [
-            'skipper = pytest_skipper',
+            'pytest_skipper = pytest_skipper',
         ],
     },
 )
