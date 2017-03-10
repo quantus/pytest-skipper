@@ -68,7 +68,7 @@ def pytest_fixture_setup(fixturedef, request):
     if not current_cov:
         current_cov = create_coverage()
     elif current_fixture:
-        scopes = stop_fixture_capture(current_fixture)
+        stop_fixture_capture(current_fixture)
         # print 'End   fixture capture', current_fixture, scopes
 
     current_fixture = fixturedef.argname
@@ -121,7 +121,7 @@ def pytest_collection_modifyitems(session, config, items):
             for commit_sha in commit_shas
         ]
         if not potential_scopes:
-            print "No previous traces found, re-running all tests"
+            print('No previous traces found, re-running all tests')
             return
 
         potential_scopes = sorted(
@@ -134,16 +134,16 @@ def pytest_collection_modifyitems(session, config, items):
             )
         )
         base_commit_sha, (scopes, dirty_test_files) = potential_scopes[0]
-        print "Potential traces %r" % (
+        print('Potential traces %r' % (
             [(x[0], len(x[1][0])) for x in potential_scopes]
-        )
-        print "Using trace %s" % base_commit_sha
-        print "Found modifications to following scopes: %r" % sorted(
+        ))
+        print('Using trace %s' % base_commit_sha)
+        print('Found modifications to following scopes: %r' % sorted(
             list(scopes)
-        )
+        ))
 
         if 'global' in scopes:
-            print "Changes to global scope, re-running all tests"
+            print('Changes to global scope, re-running all tests')
             if config.getvalue("dry-run-skipper"):
                 tests = items[:]
                 items[:] = []
@@ -178,14 +178,14 @@ def pytest_collection_modifyitems(session, config, items):
                 tests_to_run.append(item)
 
         if config.getvalue("dry-run-skipper"):
-            print "Following tests can not be skipped: "
+            print('Following tests can not be skipped: ')
             for test in tests_to_run:
-                print test.nodeid
+                print(test.nodeid)
 
-            print "Result: Can skip %d test(s), need to run %d test(s)" % (
+            print('Result: Can skip %d test(s), need to run %d test(s)' % (
                 len(tests_to_skip),
                 len(tests_to_run)
-            )
+            ))
 
             tests = items[:]
             items[:] = []
@@ -199,7 +199,7 @@ def pytest_collection_modifyitems(session, config, items):
             tests_to_skip and
             current_git_head_sha != base_commit_sha
         ):
-            print "Moving skipped tests to the latest commit"
+            print('Moving skipped tests to the latest commit')
             c.execute(
                 "UPDATE scopes SET git_sha=:new_git_sha "
                 "WHERE git_sha=:old_git_sha AND test IN (%s)" % (
@@ -213,10 +213,10 @@ def pytest_collection_modifyitems(session, config, items):
                 }
             )
 
-        print "Result: managed to skip %d test(s), running %d test(s)" % (
+        print('Result: managed to skip %d test(s), running %d test(s)' % (
             len(tests_to_skip),
             len(tests_to_run)
-        )
+        ))
         items[:] = tests_to_run
         config.hook.pytest_deselected(items=tests_to_skip)
 
@@ -286,15 +286,15 @@ def get_changed_scopes_in_source(commit_sha):
     scopes = set()
     for d in diffs:
         if (d.a_path or d.b_path).startswith(test_folder + '/'):
-            print "Commit %s: change to %s, assume test changes" % (
+            print('Commit %s: change to %s, assume test changes' % (
                 commit_sha, (d.a_path or d.b_path)
-            )
+            ))
             dirty_test_files.add(d.a_path or d.b_path)
             continue
         elif not (d.a_path or d.b_path).startswith(source_folder + '/'):
-            print "Commit %s: change to %s, assume global changes" % (
+            print('Commit %s: change to %s, assume global changes' % (
                 commit_sha, (d.a_path or d.b_path)
-            )
+            ))
             return ['global'], []
         a_content_lines = (
             d.a_blob.data_stream.read().split('\n') if d.a_blob else []

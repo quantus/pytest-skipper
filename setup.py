@@ -26,8 +26,8 @@ setup(
     long_description=read('README.rst'),
     py_modules=['pytest_skipper'],
     install_requires=[
-        'pytest>=2.9.2',
-        'coverage>=3.7.1',
+        'pytest>=3.0.6',
+        'coverage>=4.2',
         'GitPython>=2.1.1'
         ],
     classifiers=[
