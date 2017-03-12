@@ -74,6 +74,11 @@ List tests with changes
 Same as ``--skipper``, but instead of running the tests, only outputs them. Useful to see what
 tests need to be updated after code change.
 
+Similar projects
+----------------
+ - `pytest-testmon`_
+ - `smother`_
+
 Contributing
 ------------
 Contributions are very welcome. Tests can be run with `tox`_, please ensure
@@ -102,3 +107,5 @@ If you encounter any problems, please `file an issue`_ along with a detailed des
 .. _`tox`: https://tox.readthedocs.io/en/latest/
 .. _`pip`: https://pypi.python.org/pypi/pip/
 .. _`PyPI`: https://pypi.python.org/pypi
+.. _`pytest-testmon`: https://github.com/tarpas/pytest-testmon
+.. _`smother`: https://github.com/ChrisBeaumont/smother
