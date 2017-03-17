@@ -13,13 +13,14 @@ current_cov = None
 current_fixture = None
 fixture_scopes = {}
 tracing = False
+code_module = None
 
 
 def create_coverage():
     coverage = Coverage(
         config_file=False,
-        source=[source_folder],
-        include=[source_folder + '/*'],
+        source=[(code_module or source_folder)],
+        include=[(code_module or source_folder) + '/*'],
     )
     coverage._warn_no_data = False
     return coverage
@@ -89,9 +90,10 @@ def stop_fixture_capture(name):
 
 
 def pytest_report_header(config):
-    global tracing
+    global tracing, code_module
 
     tracing = config.getvalue("tracing")
+    code_module = config.getvalue("skipper-module")
 
     if tracing:
         r = Repo('.')
@@ -231,6 +233,9 @@ def pytest_addoption(parser):
     group.addoption(
         '--dry-run-skipper', action='store_true', dest="dry-run-skipper",
         help="Only list the tests that have changes in execution path.")
+    group.addoption(
+        '--skipper-module', default=None, dest="skipper-module",
+        help="Specify source folder (python module).")
 
 
 def create_scopes(lines):
