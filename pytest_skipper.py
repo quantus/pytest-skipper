@@ -13,14 +13,13 @@ current_cov = None
 current_fixture = None
 fixture_scopes = {}
 tracing = False
-code_module = None
 
 
 def create_coverage():
     coverage = Coverage(
         config_file=False,
-        source=[(code_module or source_folder)],
-        include=[(code_module or source_folder) + '/*'],
+        source=[source_folder],
+        include=[source_folder + '/*'],
     )
     coverage._warn_no_data = False
     return coverage
@@ -90,10 +89,12 @@ def stop_fixture_capture(name):
 
 
 def pytest_report_header(config):
-    global tracing, code_module
+    global tracing, source_folder
 
     tracing = config.getvalue("tracing")
     code_module = config.getvalue("skipper-module")
+    if code_module:
+        source_folder = code_module
 
     if tracing:
         r = Repo('.')
