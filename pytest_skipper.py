@@ -4,6 +4,11 @@ from git import Repo
 import difflib
 import re
 
+try:
+    from StringIO import StringIO
+except:
+    from io import StringIO
+
 current_git_head_sha = Repo('.').commit().hexsha
 # If project folder is "/foo/bar", assume code is stored in "/foo/bar/bar"
 source_folder = Repo('.').working_tree_dir.split('/')[-1]
@@ -240,7 +245,6 @@ def pytest_addoption(parser):
 
 
 def create_scopes(lines):
-    from StringIO import StringIO
     data = StringIO(''.join(lines))
 
     scopes = []
