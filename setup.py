@@ -13,7 +13,7 @@ def read(fname):
 
 setup(
     name='pytest-skipper',
-    version='0.1.0',
+    version='0.1.1',
     author='Pekka Pöyry',
     author_email='pekka.poyry@gmail.com',
     license='MIT',
