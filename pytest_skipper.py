@@ -309,16 +309,21 @@ def get_changed_scopes_in_source(commit_sha):
             ))
             return ['global'], []
         a_content_lines = (
-            d.a_blob.data_stream.read().split('\n') if d.a_blob else []
+            d.a_blob.data_stream.read()
+            .decode('utf-8')
+            .split(u'\n') if d.a_blob else []
         )
         b_content_lines = (
-            d.b_blob.data_stream.read().split('\n') if d.b_blob else []
+            d.b_blob.data_stream.read()
+            .decode('utf-8')
+            .split(u'\n') if d.b_blob else []
         )
         if not b_content_lines:
-            b_content_lines = [
-                l[:-1]
-                for l in open(d.a_blob.path, 'r').readlines()
-            ] + ['']
+            b_content_lines = (
+                open(d.a_blob.path, 'rb').read()
+                .decode('utf-8')
+                .split(u'\n')
+            )
         changes = list(
             difflib.unified_diff(a_content_lines, b_content_lines, n=0)
         )
