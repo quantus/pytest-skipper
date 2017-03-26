@@ -300,7 +300,10 @@ def get_changed_scopes_in_source(commit_sha):
             ))
             dirty_test_files.add(d.a_path or d.b_path)
             continue
-        elif not (d.a_path or d.b_path).startswith(source_folder + '/'):
+        elif (
+            not (d.a_path or d.b_path).startswith(source_folder + '/') or
+            not (d.a_path or d.b_path).endswith('.py')
+        ):
             print('Commit %s: change to %s, assume global changes' % (
                 commit_sha, (d.a_path or d.b_path)
             ))
