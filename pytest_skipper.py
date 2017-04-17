@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-import __builtin__
+try:
+    import __builtin__ as builtins
+except:
+    import builtins
 from coverage import Coverage
 from git import Repo
 import difflib
@@ -24,7 +27,7 @@ fixture_dirty_files = {}
 tracing = False
 
 
-open_real = __builtin__.open
+open_real = builtins.open
 
 
 def open_hooked(*args, **kwargs):
@@ -32,7 +35,7 @@ def open_hooked(*args, **kwargs):
     current_dirty_files.add(args[0])
     return r
 
-__builtin__.open = open_hooked
+builtins.open = open_hooked
 
 
 def file_inside_repo(filename):
