@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import __builtin__
 from coverage import Coverage
 from git import Repo
 import difflib
 import re
+import os
 
 try:
     from StringIO import StringIO
@@ -15,9 +17,29 @@ source_folder = Repo('.').working_tree_dir.split('/')[-1]
 test_folder = 'tests'
 
 current_cov = None
+current_dirty_files = set()
 current_fixture = None
 fixture_scopes = {}
+fixture_dirty_files = {}
 tracing = False
+
+
+open_real = __builtin__.open
+
+
+def open_hooked(*args, **kwargs):
+    r = open_real(*args, **kwargs)
+    current_dirty_files.add(args[0])
+    return r
+
+__builtin__.open = open_hooked
+
+
+def file_inside_repo(filename):
+    repo_directory = os.path.realpath('.') + os.path.sep
+    return os.path.commonprefix(
+        [os.path.realpath(filename), repo_directory]
+    ) == repo_directory
 
 
 def create_coverage():
@@ -36,61 +58,81 @@ def pytest_runtest_call(item):
         return
 
     if current_fixture:
-        stop_fixture_capture(current_fixture)
+        stop_fixture_capture()
 
     current_fixture = None
     current_cov.start()
 
 
 def pytest_runtest_teardown(item, nextitem):
-    global current_cov, current_fixture, fixture_scopes, tracing
+    global current_cov, current_fixture, tracing
+
     if not tracing:
         return
 
-    current_cov.stop()
-    scopes = extract_scopes_from_coverage(current_cov)
-    current_cov.erase()
+    stop_fixture_capture()  # None fixture is the actual test function run
 
     failed = False
+    scopes = []
+    dirty_files = []
 
-    for fixture_name in item.fixturenames:
+    for fixture_name in item.fixturenames + [None]:
         if fixture_name != 'request':  # pytest internal fixture
             if fixture_name in fixture_scopes:
                 scopes.extend(fixture_scopes[fixture_name])
+                dirty_files.extend(fixture_dirty_files[fixture_name])
             else:
                 print('Fixture execution trace missing, tracing ignored')
                 failed = True
 
     # Remove duplicates
     scopes = list(set(scopes))
+    dirty_files = list(set(dirty_files))
+
+    # Filter out unwanted data files from dependencies
+    dirty_files = [f for f in dirty_files if file_inside_repo(f)]
+    dirty_files = [f for f in dirty_files if not f.endswith('.py')]
+    dirty_files = [f for f in dirty_files if not f.endswith('.pyc')]
+
+    # Store paths in relative form
+    dirty_files = [os.path.relpath(f) for f in dirty_files]
 
     if not failed:
-        save_scopes_to_db(current_git_head_sha, item.nodeid, scopes)
+        save_scopes_to_db(
+            current_git_head_sha,
+            item.nodeid,
+            scopes,
+            dirty_files
+        )
 
 
 def pytest_fixture_setup(fixturedef, request):
     global current_cov, current_fixture, fixture_scopes, tracing
+    global current_dirty_files
     if not tracing:
         return
 
     if not current_cov:
         current_cov = create_coverage()
+        current_dirty_files = set()
     elif current_fixture:
-        stop_fixture_capture(current_fixture)
+        stop_fixture_capture()
 
     current_fixture = fixturedef.argname
     current_cov.start()
 
 
-def stop_fixture_capture(name):
-    global current_cov, current_fixture, fixture_scopes
+def stop_fixture_capture():
+    global current_cov, current_fixture, fixture_scopes, current_dirty_files
     current_cov.stop()
 
     scopes = extract_scopes_from_coverage(current_cov)
     fixture_scopes[current_fixture] = scopes
 
     current_cov.erase()
-    return scopes
+
+    fixture_dirty_files[current_fixture] = list(current_dirty_files)
+    current_dirty_files = set()
 
 
 def pytest_report_header(config):
@@ -125,8 +167,24 @@ def pytest_collection_modifyitems(session, config, items):
             row for row,
             in c.execute('SELECT DISTINCT(git_sha) FROM scopes').fetchall()
         ]
+        files_used_by_tests_data = [
+            (git_sha, file_name) for git_sha, file_name,
+            in c.execute(
+                'SELECT DISTINCT git_sha, file_name FROM dirty_files'
+            ).fetchall()
+        ]
+        from collections import defaultdict
+        files_used_by_tests = defaultdict(list)
+        for git_sha, file_name in files_used_by_tests_data:
+            files_used_by_tests[git_sha].append(file_name)
         potential_scopes = [
-            (commit_sha, get_changed_scopes_in_source(commit_sha))
+            (
+                commit_sha,
+                get_changed_scopes_in_source(
+                    commit_sha,
+                    files_used_by_tests[commit_sha]
+                )
+            )
             for commit_sha in commit_shas
         ]
         if not potential_scopes:
@@ -142,7 +200,9 @@ def pytest_collection_modifyitems(session, config, items):
                 x[0]  # Make deterministic
             )
         )
-        base_commit_sha, (scopes, dirty_test_files) = potential_scopes[0]
+        base_commit_sha, (scopes, dirty_test_files, dirty_dependencies) = (
+            potential_scopes[0]
+        )
         print('Potential traces %r' % (
             [(x[0], len(x[1][0])) for x in potential_scopes]
         ))
@@ -173,6 +233,21 @@ def pytest_collection_modifyitems(session, config, items):
                 {'git_sha': base_commit_sha},
             ).fetchall()
         ])
+        dependency_dependent_test_names = set([
+            l for l, in c.execute(
+                "SELECT DISTINCT(test)"
+                "FROM dirty_files "
+                "WHERE git_sha = :git_sha AND "
+                "file_name IN (%s)" % (
+                    ','.join("'%s'" % escape(s) for s in dirty_dependencies)
+                ),
+                {'git_sha': base_commit_sha},
+            ).fetchall()
+        ])
+
+        skippable_test_names = (
+            skippable_test_names - dependency_dependent_test_names
+        )
 
         tests_to_run = []
         tests_to_skip = []
@@ -288,8 +363,9 @@ def create_scopes(lines):
     return scopes
 
 
-def get_changed_scopes_in_source(commit_sha):
-    dirty_test_files = {}
+def get_changed_scopes_in_source(commit_sha, files_used_by_tests):
+    dirty_test_files = set()
+    dirty_dependencies = set()
     r = Repo('.')
     diffs = r.commit(commit_sha).diff(None)
     scopes = set()
@@ -300,6 +376,12 @@ def get_changed_scopes_in_source(commit_sha):
             ))
             dirty_test_files.add(d.a_path or d.b_path)
             continue
+        elif (os.path.relpath(d.a_path or d.b_path) in files_used_by_tests):
+            print('Commit %s: change to %s, test dependency match' % (
+                commit_sha, (d.a_path or d.b_path)
+            ))
+            dirty_dependencies.add(d.a_path or d.b_path)
+            continue
         elif (
             not (d.a_path or d.b_path).startswith(source_folder + '/') or
             not (d.a_path or d.b_path).endswith('.py')
@@ -307,7 +389,7 @@ def get_changed_scopes_in_source(commit_sha):
             print('Commit %s: change to %s, assume global changes' % (
                 commit_sha, (d.a_path or d.b_path)
             ))
-            return ['global'], []
+            return ['global'], [], []
         a_content_lines = (
             d.a_blob.data_stream.read()
             .decode('utf-8')
@@ -354,7 +436,7 @@ def get_changed_scopes_in_source(commit_sha):
         for b in b_lines:
             if b != 0:
                 scopes.add(b_file_scopes[b-1])
-    return scopes, dirty_test_files
+    return scopes, dirty_test_files, dirty_dependencies
 
 
 def extract_scopes_from_coverage(cov):
@@ -383,15 +465,19 @@ def extract_scopes_from_coverage(cov):
     return formated_scopes
 
 
-def save_scopes_to_db(git_sha, test_id, scopes):
+def save_scopes_to_db(git_sha, test_id, scopes, dirty_files):
     import sqlite3
     conn = sqlite3.connect('skipper.db')
     c = conn.cursor()
-    try:
-        c.execute('CREATE TABLE scopes(git_sha text, scope text, test text)')
-    except sqlite3.OperationalError:
-        conn.rollback()
-        c = conn.cursor()
+    for create_table_command in (
+        'CREATE TABLE scopes(git_sha text, scope text, test text)',
+        'CREATE TABLE dirty_files(git_sha text, file_name text, test text)'
+    ):
+        try:
+            c.execute(create_table_command)
+        except sqlite3.OperationalError:
+            conn.rollback()
+            c = conn.cursor()
 
     c.execute(
         "DELETE FROM scopes WHERE git_sha=? AND test=?",
@@ -401,6 +487,15 @@ def save_scopes_to_db(git_sha, test_id, scopes):
         "INSERT INTO scopes VALUES (?, ?, ?)",
         [(git_sha, scope, test_id) for scope in scopes]
     )
+    c.execute(
+        "DELETE FROM dirty_files WHERE git_sha=? AND test=?",
+        (git_sha, test_id)
+    )
+    c.executemany(
+        "INSERT INTO dirty_files VALUES (?, ?, ?)",
+        [(git_sha, file_name, test_id) for file_name in dirty_files]
+    )
+
     conn.commit()
     conn.close()
 
