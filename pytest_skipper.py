@@ -26,6 +26,8 @@ fixture_scopes = {}
 fixture_dirty_files = {}
 tracing = False
 
+IMPORT_PHASE_COVERAGE = object()
+TEST_FUNCTION_COVERAGE = object()
 
 open_real = builtins.open
 
@@ -63,7 +65,7 @@ def pytest_runtest_call(item):
     if current_fixture:
         stop_fixture_capture()
 
-    current_fixture = None
+    current_fixture = TEST_FUNCTION_COVERAGE
     current_cov.start()
 
 
@@ -73,13 +75,16 @@ def pytest_runtest_teardown(item, nextitem):
     if not tracing:
         return
 
-    stop_fixture_capture()  # None fixture is the actual test function run
+    stop_fixture_capture()
 
     failed = False
     scopes = []
     dirty_files = []
 
-    for fixture_name in item.fixturenames + [None]:
+    for fixture_name in item.fixturenames + [
+        TEST_FUNCTION_COVERAGE,
+        IMPORT_PHASE_COVERAGE
+    ]:
         if fixture_name != 'request':  # pytest internal fixture
             if fixture_name in fixture_scopes:
                 scopes.extend(fixture_scopes[fixture_name])
@@ -111,17 +116,25 @@ def pytest_runtest_teardown(item, nextitem):
 
 def pytest_fixture_setup(fixturedef, request):
     global current_cov, current_fixture, fixture_scopes, tracing
-    global current_dirty_files
     if not tracing:
         return
 
-    if not current_cov:
-        current_cov = create_coverage()
-        current_dirty_files = set()
-    elif current_fixture:
-        stop_fixture_capture()
+    stop_fixture_capture()
 
     current_fixture = fixturedef.argname
+    current_cov.start()
+
+
+def pytest_load_initial_conftests(early_config, parser, args):
+    global current_cov, current_fixture, current_dirty_files
+
+    if '--tracer' not in args:
+        return
+
+    current_cov = create_coverage()
+    current_dirty_files = set()
+
+    current_fixture = IMPORT_PHASE_COVERAGE
     current_cov.start()
 
 
